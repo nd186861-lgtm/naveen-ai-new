@@ -38,6 +38,7 @@ const ShortsPreview = forwardRef<ShortsPreviewHandle, ShortsPreviewProps>(({
   const imageCacheRef = useRef<Record<string, HTMLImageElement>>({});
   const animationFrameRef = useRef<number | null>(null);
   const stateRef = useRef({ currentFrameIndex, progress, isPlaying });
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Update state reference to avoid stale closures in render loop
   useEffect(() => {
@@ -47,10 +48,41 @@ const ShortsPreview = forwardRef<ShortsPreviewHandle, ShortsPreviewProps>(({
   // Audio handling via Speech Synthesis
   const synth = window.speechSynthesis;
 
-  const speakNarration = (text: string) => {
+  const speakNarration = (text: string, audioUrl?: string) => {
     if (isMuted) return;
+
+    // Stop currently running SpeechSynthesis or custom audio elements
     try {
-      synth.cancel(); // Stop current speech
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+    } catch (e) {}
+
+    try {
+      synth.cancel();
+    } catch (e) {}
+
+    // Play Premium base64 AI vocal track if loaded on this frame
+    if (audioUrl) {
+      try {
+        const audio = new Audio(audioUrl);
+        activeAudioRef.current = audio;
+        audio.play().catch(e => {
+          console.warn("Speech Synthesis premium audio autoplay blocked, using fallback TTS:", e);
+          fallbackSpeechSynthesis(text);
+        });
+      } catch (err) {
+        console.error("Custom audio player exception, using fallback TTS:", err);
+        fallbackSpeechSynthesis(text);
+      }
+    } else {
+      fallbackSpeechSynthesis(text);
+    }
+  };
+
+  const fallbackSpeechSynthesis = (text: string) => {
+    try {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = languageCode;
       
@@ -81,6 +113,13 @@ const ShortsPreview = forwardRef<ShortsPreviewHandle, ShortsPreviewProps>(({
       console.error("Speech synthesis failed: ", e);
     }
   };
+
+  // Manage volume muting of activeAudioRef dynamically
+  useEffect(() => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
 
   // Manage Soundscapes activation
   useEffect(() => {
@@ -239,6 +278,33 @@ const ShortsPreview = forwardRef<ShortsPreviewHandle, ShortsPreviewProps>(({
         ctx.drawImage(img, sx, sy, sDrawWidth, sDrawHeight, 0, 0, internalW, internalH);
         ctx.restore();
         ctx.globalAlpha = 1.0;
+      } else {
+        // Draw elegant visual draft template scene placeholder
+        ctx.save();
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(0, 0, internalW, internalH);
+
+        // Draw dotted borders
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = Math.round(internalW * 0.01);
+        ctx.setLineDash([20, 15]);
+        ctx.strokeRect(40, 40, internalW - 80, internalH - 80);
+
+        // Draw an adorable filmstrip or camera emoji
+        ctx.font = `${Math.round(internalW * 0.12)}px "sans-serif"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText("🎨", internalW / 2, internalH * 0.40);
+
+        // Context info text
+        ctx.fillStyle = '#A0A0A0';
+        ctx.font = `bold ${Math.round(internalW * 0.035)}px "Inter", sans-serif`;
+        ctx.fillText(`SCENE ${idx + 1} • CLICK RENDER`, internalW / 2, internalH * 0.50);
+        
+        ctx.fillStyle = '#555555';
+        ctx.font = `${Math.round(internalW * 0.025)}px "Inter", sans-serif`;
+        ctx.fillText("Tap 'Render' in editor tab to illustrate with Gemini", internalW / 2, internalH * 0.54);
+        ctx.restore();
       }
 
       // 3. Draw Clean Panoramic Cinematic Subtitles directly over the image (No heavy watermark backgrounds or headers)
@@ -274,8 +340,8 @@ const ShortsPreview = forwardRef<ShortsPreviewHandle, ShortsPreviewProps>(({
     const currentFrame = frames[currentFrameIndex];
     const duration = currentFrame.duration * 1000;
     
-    // Announce the narration in English voiceover immediately
-    speakNarration(currentFrame.narration);
+    // Announce the narration in requested target language voiceover
+    speakNarration(currentFrame.narration, currentFrame.audioUrl);
 
     const startTime = Date.now();
     const interval = setInterval(() => {
@@ -297,7 +363,15 @@ const ShortsPreview = forwardRef<ShortsPreviewHandle, ShortsPreviewProps>(({
 
     return () => {
       clearInterval(interval);
-      synth.cancel();
+      try {
+        synth.cancel();
+      } catch (e) {}
+      try {
+        if (activeAudioRef.current) {
+          activeAudioRef.current.pause();
+          activeAudioRef.current = null;
+        }
+      } catch (e) {}
     };
   }, [currentFrameIndex, isPlaying, frames, onFinish]);
 

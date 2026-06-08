@@ -16,4 +16,5 @@ export interface Storyboard {
 
 export interface GeneratedFrame extends StoryboardFrame {
   imageUrl?: string;
+  audioUrl?: string;
 }

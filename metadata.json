@@ -1,6 +1,8 @@
 {
   "name": "Remix: AI Cartoon Shorts Creator",
-  "description": "Generate 5-second animated cartoon clips for YouTube Shorts using AI-powered storyboarding and image generation.",
+  "description": "Premium full-service production studio agency and free visual creator sandbox to write, draw, translate, and record viral Pixar-level cartoon shorts.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
